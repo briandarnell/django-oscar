@@ -2,6 +2,8 @@ name: Build ARM64 Wheels
 on:
   push:
     branches: [ latest-features ]
+  workflow_dispatch:
+
 
 jobs:
   build:
