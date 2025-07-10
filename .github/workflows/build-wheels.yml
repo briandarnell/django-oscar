@@ -1,31 +1,54 @@
-name: Build ARM64 Wheels
+name: Build Windows ARM64 Wheels
 on:
   push:
     branches: [ latest-features ]
-  workflow_dispatch:
-
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  build:
+  build-wheels:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+        
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
-        architecture: 'x64'  # Build on x64 but target ARM64
-    
-    - name: Install build tools
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install build wheel setuptools
-    
+        pip install build wheel setuptools cibuildwheel
+        
     - name: Build wheel
-      run: python -m build --wheel
-    
-    - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      run: |
+        python -m build --wheel --sdist
+        
+    - name: Test wheel installation
+      run: |
+        pip install dist/*.whl
+        python -c "import oscar; print('Django Oscar imported successfully')"
+        
+    - name: Upload wheels and source dist
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels
-        path: dist/*.whl
+        name: django-oscar-wheels-py${{ matrix.python-version }}
+        path: |
+          dist/*.whl
+          dist/*.tar.gz
+        retention-days: 30
+        
+    - name: Create release on tag
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/*.whl
+          dist/*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
